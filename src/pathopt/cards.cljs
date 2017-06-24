@@ -11,7 +11,7 @@
    :d/by-id          {1 {:db/id 1 :type :d/by-id :value "D" :child [:child/by-id 1]}}
    :c/by-id          {1 {:db/id 1 :type :c/by-id :value "C"}}
    :controller       [:controller/by-id :the-one]
-   :controller/by-id {:the-one {:current-tab [:c/by-id 1]}}
+   :controller/by-id {:the-one {:current-tabs [[:c/by-id 1] [:d/by-id 1]]}}
    })
 
 (defui ^:once DChild
@@ -21,8 +21,11 @@
   (query [this] [:db/id :child/value])
   Object
   (render [this]
+    (js/console.log :DChild)
     (let [{:keys [child/value]} (om/props this)]
-      (dom/div #js {:onClick #(om/transact! this '[(do-thing) :value])} (str value)))))
+      (js/console.log :path (om/path this))
+      (dom/div #js {:onClick #(om/transact! this '[(do-thing)])} (str value)))))
+
 
 (def ui-child (om/factory DChild))
 
@@ -31,8 +34,9 @@
   (query [this] [:db/id :value :type {:child (om/get-query DChild)}])
   Object
   (render [this]
+    (js/console.log :D)
     (let [{:keys [value child]} (om/props this)]
-      (dom/div nil ;#js {:onClick #(om/transact! this '[(do-thing) :b])}
+      (dom/div nil                                          ;#js {:onClick #(om/transact! this '[(do-thing) :b])}
         (str "IN D: " value)
         (ui-child child)))))
 
@@ -44,8 +48,8 @@
   Object
   (render [this]
     (let [{:keys [value]} (om/props this)]
-      (dom/div nil ;#js {:onClick #(om/transact! this `[(do-thing) :child/value])}
-        (dom/button #js {:onClick #(om/transact! this '[(nav-to {:tab :d/by-id}) :controller])} "D")
+      (dom/div nil                                          ;#js {:onClick #(om/transact! this `[(do-thing) :child/value])}
+        #_(dom/button #js {:onClick #(om/transact! this '[(nav-to {:tab :d/by-id}) :controller])} "D")
         (str "IN C:" value)))))
 
 (def ui-c (om/factory C))
@@ -57,6 +61,7 @@
   (query [this] {:c/by-id (om/get-query C) :d/by-id (om/get-query D)})
   Object
   (render [this]
+    (js/console.log :UNION)
     (let [{:keys [type] :as props} (om/props this)]
       (case type
         :c/by-id (ui-c props)
@@ -68,11 +73,13 @@
   static om/Ident
   (ident [this props] [:controller/by-id :the-one])
   static om/IQuery
-  (query [this] [{:current-tab (om/get-query BUnion)}])
+  (query [this] [{:current-tabs (om/get-query BUnion)}])
   Object
   (render [this]
-    (let [{:keys [current-tab] :as props} (om/props this)]
-      (ui-b current-tab))))
+    (js/console.log :UC)
+    (let [{:keys [current-tabs] :as props} (om/props this)]
+      (dom/div nil
+        (map #(ui-b %) current-tabs)))))
 
 (def ui-controller (om/factory UnionController))
 
@@ -83,7 +90,8 @@
   (render [this]
     (let [{:keys [controller]} (om/props this)]
       (dom/div nil
-        (dom/button #js {:onClick #(om/transact! this '[(nav-to {:tab :c/by-id})])} "C")
+        (js/console.log :ROOT)
+        #_(dom/button #js {:onClick #(om/transact! this '[(nav-to {:tab :c/by-id})])} "C")
         (ui-controller controller)))))
 
 (defn read-local
@@ -106,17 +114,18 @@
   {:action (fn []
              (js/console.log :mutation k)
              (cond
-               (= k 'nav-to) (swap! state assoc-in [:controller/by-id :the-one :current-tab] [tab 1])
+               ;(= k 'nav-to) (swap! state assoc-in [:controller/by-id :the-one :current-tabs] [tab 1])
                (= k 'do-thing) (swap! state (fn [s] (-> s
                                                       (update-in [:child/by-id 1 :child/value] inc)
-                                                      (update-in [:d/by-id 1 :value] #(str % "D"))
-                                                      (assoc-in [:controller/by-id :the-one :current-tab] [:c/by-id 1])
+                                                      #_(update-in [:d/by-id 1 :value] #(str % "D"))
+                                                      #_(assoc-in [:controller/by-id :the-one :current-tab] [:c/by-id 1])
                                                       )))))})
 
 (def parser (om/parser {:read read-local :mutate mutate}))
-(defonce reconciler (om/reconciler {:state   (atom initial-state)
-                                    :parser  parser
-                                    :pathopt true}))
+(defonce reconciler (om/reconciler {:state     (atom initial-state)
+                                    :parser    parser
+                                    :normalize true
+                                    :pathopt   true}))
 
 (defcard-om-next sample
   "A sample"
