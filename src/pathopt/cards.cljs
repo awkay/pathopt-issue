@@ -1,10 +1,9 @@
 (ns pathopt.cards
   (:require
     [om.dom :as dom]
+    [goog.dom :as gdom]
     [om.util :as util]
-    [goog.object :as gobj]
-    [om.next :as om :refer [defui]]
-    [devcards.core :as dc :refer-macros [defcard defcard-om-next]]))
+    [om.next :as om :refer [defui]]))
 
 (def dropdown-table :bootstrap.dropdown/by-id)
 (def dropdown-item-table :bootstrap.dropdown-item/by-id)
@@ -218,9 +217,10 @@
   Object
   (render [this]
     (let [{:keys [nav]} (om/props this)]
-      (ui-nav nav))))
+      (dom/div #js {:className "container-fluid"}
+        (dom/div #js {:className "row"}
+          (dom/div #js {:className "col col-xs-6"} (ui-nav nav)))))))
 
-(defcard-om-next nav-tabs
-  NavRoot
-  reconciler)
+(om/add-root! reconciler NavRoot (gdom/getElement "app"))
+
 
