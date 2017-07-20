@@ -123,16 +123,31 @@
 
 (def ui-nav-item (om/factory NavItemUnion {:keyfn :id}))
 
+(defui ^:once OtherChild
+  static om/Ident
+  (ident [this {:keys [id]}] [:other/by-id id])
+  static om/IQuery
+  (query [this] [:id :label :count])
+  Object
+  (render [this]
+    (let [{:keys [id label count]} (om/props this)]
+      (dom/button #js {:onClick #(om/transact! this `[(bump {:id ~id})])} (str label ": " count)))))
+
+(def ui-other (om/factory OtherChild {:keyfn :id}))
+
 (defui ^:once Nav
   static om/Ident
   (ident [this props] (nav-ident props))
   static om/IQuery
-  (query [this] [:id :kind :layout :active-link-id {:links (om/get-query NavItemUnion)}])
+  (query [this] [:id :kind :layout :active-link-id {:links (om/get-query NavItemUnion)} {:other (om/get-query OtherChild)}])
   Object
   (render [this]
-    (let [{:keys [:id :kind :layout :active-link-id :links]} (om/props this)]
-      (dom/ul #js {:className (str "nav nav-" (name kind) (case layout :justified " nav-justified" :stacked " nav-stacked" ""))}
-        (map #(ui-nav-item (om/computed % {:active? (= (:id %) active-link-id)})) links)))))
+    (let [{:keys [id kind layout active-link-id links other]} (om/props this)]
+      (dom/div nil
+        (dom/ul #js {:className (str "nav nav-" (name kind) (case layout :justified " nav-justified" :stacked " nav-stacked" ""))}
+          (map #(ui-nav-item (om/computed % {:active? (= (:id %) active-link-id)})) links))
+        (dom/button #js {:onClick #(om/transact! this `[(bump {:id 1})])} "Rebump")
+        (when (even? (:count other)) (ui-other other))))))
 
 (def ui-nav (om/factory Nav {:keyfn :id}))
 
@@ -176,16 +191,21 @@
                                                               :items [[:bootstrap.dropdown-item/by-id :report-1] [:bootstrap.dropdown-item/by-id :report-2]]
                                                               :open? true
                                                               :type  :bootstrap.dropdown/by-id}}
+                    :other/by-id                   {1 {:id 1 :label "Hello" :count 1}}
                     :bootstrap.nav/by-id           {:main-nav {
                                                                :id             :main-nav
                                                                :kind           :tabs
                                                                :layout         :normal
                                                                :active-link-id :home
-                                                               :links          [[:bootstrap.navitem/by-id :home] [:bootstrap.navitem/by-id :other] [:bootstrap.dropdown/by-id :reports]]}}
-                    })
+                                                               :other          [:other/by-id 1]
+                                                               :links          [[:bootstrap.navitem/by-id :home] [:bootstrap.navitem/by-id :other] [:bootstrap.dropdown/by-id :reports]]}}})
 
 (defmulti mutate om/dispatch)
 (defmethod mutate :default [{:keys [state]} k {:keys [tab]}] (js/console.log :UNKNOWN))
+
+(defmethod mutate `bump [{:keys [state]} _ {:keys [id]}]
+  {:action (fn []
+             (swap! state update-in [:other/by-id id :count] inc))})
 
 (defmethod mutate `set-dropdown-open [{:keys [state]} _ {:keys [id open?]}]
   {:action (fn []
